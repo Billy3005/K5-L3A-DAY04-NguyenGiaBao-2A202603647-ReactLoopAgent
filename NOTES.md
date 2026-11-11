@@ -3,6 +3,17 @@
 Họ và tên: Nguyễn Gia Bảo
 MSSV: 2A202603647
 
+## Đối chiếu rubric → bằng chứng
+
+| Tiêu chí (RUBRIC.md) | Bằng chứng | Cách kiểm tra |
+|---|---|---|
+| **Agent loop (30)**: lưu assistant message, đúng `tool_call_id`, xử lý nhiều calls, dừng đúng | `agent.py`: `run_agent` (dòng 102). Lưu message nguyên vẹn (162). Mọi call trả kết quả kèm `tool_call_id` (177). Chỉ dừng khi `finish == 'stop'` (182). Không dùng framework; chỉ import `json`, `re`, `time`. | `python -m unittest discover -s tests -v`: `test_tool_result_is_returned_with_id`, `test_multiple_tool_calls`, `test_two_tools_and_final_with_real_snapshot` |
+| **Robustness và trace (15)**: max_steps, invalid JSON, tool error, dừng bất thường | JSON lỗi → `INVALID_ARGUMENTS` (122). Provider lỗi → `error` (158). `finish == 'length'` → `error`, không báo `completed` (169). Hết budget → `max_steps` (203). Mọi phần tử trace có `event`. | Unit tests `test_invalid_json_sent_back_to_model`, `test_model_truncation_is_not_completed`, `test_max_steps`, `test_unknown_tool_and_timeout_are_observations`. Ba file eval: 0 phần tử trace thiếu `event`. |
+| **Eval và phân tích (20)**: chạy 2 lần cùng cấu hình, dẫn trace, giới hạn judge | `eval_before.json` (93.73) và `eval_after.json` (93.05), cả hai 22/22 case được chấm, khối `config` giống hệt. Trace A2 trích ở mục 2. Giới hạn ở mục 5. | So khối `config` của hai file; `summary.score_0_100` khác `null` |
+| **Cải tiến và trình bày (20)**: validation nguồn, tests, so sánh trước/sau | Kiểm tra nguồn `validation_missing_source` (188–190). `ANSWER_RULES` (17). 7 test mới trong `tests/test_improvements.py`. Case thiếu URL giảm 10/16 → 0/14 (mục 4). Demo H1 (mục Demo). | `tests/test_validation.py` pass. Lịch sử git: commit `a7eda8d` (baseline + eval_before) → `be67dca` (cải tiến + eval_after) |
+| **Bonus (15)** | `getattr(tools, 'schemas'/'system_prompt')` (104–105). Retry 429 giới hạn 3 lần (126–137). Rút gọn context (65). `eval_bonus.json`: 10/10 case, 94.9 → 14.24/15. | `python -m unittest discover -s bonus -p 'test_*.py' -v` |
+| **Không vi phạm** | Không sửa `fixtures/`, `evals/`, rubric. Không có key trong repo; chỉ `.env.example` được commit. `providers.py` chỉ đổi `max_tokens` (giải thích bên dưới). | `git diff dfdc975 --stat` |
+
 **Cấu hình chung cho cả 2 lần eval:** provider `anthropic`, agent model và judge model `claude-haiku-5-5`, snapshot (fixtures ngày 09/11/2026), `max_steps=8`, dataset `core` (22 case). Khối `config` trong `eval_before.json` và `eval_after.json` giống hệt nhau.
 
 > **Thay đổi hạ tầng trước khi chạy eval:** Adapter Anthropic trong `providers.py` có `max_tokens=1024`. Khi chạy thử, câu trả lời tiếng Việt bị cắt (`finish=length`), và thinking tokens của Haiku cũng tính vào budget này. Agent trả `status: error` đúng contract, nhưng nếu để vậy nhiều case sẽ `unscored` và điểm tổng thành `null`. Judge cũng cần 1137 output tokens khi chấm thử E2. Vì vậy tôi nâng `max_tokens` lên 4096. Thay đổi này áp dụng như nhau cho cả 2 lần eval và cho judge. Tôi không sửa `fixtures/`, `evals/` hay rubric.
